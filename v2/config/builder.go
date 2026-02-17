@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	sync "sync"
 	"time"
@@ -444,12 +445,16 @@ func setInbound(options *option.Options, hopt *HiddifyOptions) {
 	if hopt.EnableTun {
 
 		opts := option.TunInboundOptions{
-			Stack:        hopt.TUNStack,
-			MTU:          hopt.MTU,
-			AutoRoute:    true,
-			AutoRedirect: true,
-			StrictRoute:  hopt.StrictRoute,
-			ExcludeUID:   []uint32{uint32(os.Getuid())},
+			Stack:       hopt.TUNStack,
+			MTU:         hopt.MTU,
+			AutoRoute:   true,
+			StrictRoute: hopt.StrictRoute,
+		}
+		// AutoRedirect + ExcludeUID: Linux desktop only (nftables-based redirect).
+		// Android manages TUN via VPN API — these options are unsupported there.
+		if runtime.GOOS == "linux" || runtime.GOOS == "windows" {
+			opts.AutoRedirect = true
+			opts.ExcludeUID = []uint32{uint32(os.Getuid())}
 		}
 		tunInbound := option.Inbound{
 			Type: C.TypeTun,
