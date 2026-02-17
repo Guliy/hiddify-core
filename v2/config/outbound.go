@@ -40,12 +40,18 @@ func patchOutboundTLSTricks(base option.Outbound, configOpt HiddifyOptions) opti
 	// Fix uTLS "randomized" fingerprint generating unsupported curves in newer Go/uTLS
 	// Must be before transport check since Options holds pointer types (*VLESSOutboundOptions)
 	// and the value-type assertions below may fail
+	// NOTE: Skip fingerprint override for XHTTP — chrome/randomized work fine with H2,
+	// and forcing firefox can break XHTTP's HTTP/2 transport.
 	if tls != nil && tls.UTLS != nil {
-		// Force safe fingerprint: "randomized" and "chrome" both generate
-		// unsupported ECC/PQ curves in newer Go/uTLS (CurvePreferences error)
-		fp := tls.UTLS.Fingerprint
-		if fp == "randomized" || fp == "chrome" || fp == "" {
-			tls.UTLS.Fingerprint = "firefox"
+		isXHTTP := false
+		if opts, ok := base.Options.(*option.VLESSOutboundOptions); ok && opts.Transport != nil {
+			isXHTTP = opts.Transport.Type == C.V2RayTransportTypeXHTTP
+		}
+		if !isXHTTP {
+			fp := tls.UTLS.Fingerprint
+			if fp == "randomized" || fp == "chrome" || fp == "" {
+				tls.UTLS.Fingerprint = "firefox"
+			}
 		}
 	}
 

@@ -131,11 +131,27 @@ func StartService(ctx context.Context, in *StartRequest) (coreResponse *CoreInfo
 	}
 	// Disable memory limit on Android — 45MB is too low, causes OOM connection kills
 	libbox.SetMemoryLimit(false)
-	instance, err := NewService(ctx, *options)
-	if err != nil {
-		return errorWrapper(MessageType_START_SERVICE, err)
+
+	// Check if CommandServer already created a StartedService (shared via libbox global).
+	// If so, reuse it so gRPC SubscribeGroups streams from the same instance that runs sing-box.
+	sharedSS := libbox.GetSharedStartedService()
+	if sharedSS != nil {
+		Log(LogLevel_DEBUG, LogType_CORE, "Reusing shared StartedService from CommandServer")
+		static.StartedService = sharedSS
+		err := libbox.CheckConfigOptions(options)
+		if err != nil {
+			return errorWrapper(MessageType_ERROR_BUILDING_CONFIG, err)
+		}
+		if err := sharedSS.StartOrReloadServiceOptions(*options); err != nil {
+			return errorWrapper(MessageType_START_SERVICE, err)
+		}
+	} else {
+		instance, err := NewService(ctx, *options)
+		if err != nil {
+			return errorWrapper(MessageType_START_SERVICE, err)
+		}
+		static.StartedService = instance
 	}
-	static.StartedService = instance
 	if static.debug {
 		dumpGoroutinesToFile(fmt.Sprint(sWorkingPath, "/data/goroutine-start.log"))
 	}
