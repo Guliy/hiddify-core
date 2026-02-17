@@ -440,25 +440,16 @@ func setInbound(options *option.Options, hopt *HiddifyOptions) {
 	// } else {
 	// 	inboundDomainStrategy = opt.IPv6Mode
 	// }
-	ipv6Enable := isIPv6Supported()
+	ipv6Enable := isIPv6Supported() && hopt.IPv6Mode != option.DomainStrategy(C.DomainStrategyIPv4Only)
 	if hopt.EnableTun {
 
-		// Force "mixed" stack + auto_redirect on Linux for proper TCP handling
-		tunStack := hopt.TUNStack
-		if tunStack == "gvisor" {
-			tunStack = "mixed"
-		}
 		opts := option.TunInboundOptions{
-			Stack:        tunStack,
+			Stack:        hopt.TUNStack,
 			MTU:          hopt.MTU,
 			AutoRoute:    true,
 			AutoRedirect: true,
 			StrictRoute:  hopt.StrictRoute,
 			ExcludeUID:   []uint32{uint32(os.Getuid())},
-
-			// EndpointIndependentNat: true,
-			// GSO:                    runtime.GOOS != "windows",
-
 		}
 		tunInbound := option.Inbound{
 			Type: C.TypeTun,
@@ -466,18 +457,6 @@ func setInbound(options *option.Options, hopt *HiddifyOptions) {
 
 			Options: &opts,
 		}
-		// switch hopt.IPv6Mode {
-		// case option.DomainStrategy(dns.DomainStrategyUseIPv4):
-		// 	opts.Address = []netip.Prefix{
-		// 		netip.MustParsePrefix("172.19.0.1/28"),
-		// 	}
-		// case option.DomainStrategy(dns.DomainStrategyUseIPv6):
-		// 	opts.Address = []netip.Prefix{
-		// 		netip.MustParsePrefix("fdfe:dcba:9876::1/126"),
-		// 	}
-		// default:
-
-		// }
 		opts.Address = []netip.Prefix{netip.MustParsePrefix("172.19.0.1/28")}
 		if ipv6Enable {
 			opts.Address = append(opts.Address, netip.MustParsePrefix("fdfe:dcba:9876::1/126"))

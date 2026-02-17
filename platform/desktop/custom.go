@@ -118,11 +118,10 @@ func start(configPath *C.char, disableMemoryLimit bool) *C.char {
 
 //export stop
 func stop() *C.char {
-	// runtime.LockOSThread()
-	// defer runtime.UnlockOSThread()
-
-	_, err := hcore.Stop()
-	return emptyOrErrorC(err)
+	// Run Stop in background so FFI returns immediately to Dart (non-blocking).
+	// Go side handles cleanup (TUN teardown, ip rules, nftables) asynchronously.
+	go hcore.Stop()
+	return emptyOrErrorC(nil)
 }
 
 //export restart

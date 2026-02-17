@@ -3,7 +3,9 @@ package hcore
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/hiddify/hiddify-core/v2/config"
@@ -129,6 +131,8 @@ func StartService(ctx context.Context, in *StartRequest) (coreResponse *CoreInfo
 	if in.DelayStart {
 		<-time.After(1000 * time.Millisecond)
 	}
+	// Clean up leftover ip rules from previous crashed sessions (Linux TUN)
+	cleanupStaleIPRules()
 	// Disable memory limit on Android — 45MB is too low, causes OOM connection kills
 	libbox.SetMemoryLimit(false)
 
@@ -162,4 +166,23 @@ func StartService(ctx context.Context, in *StartRequest) (coreResponse *CoreInfo
 	}
 
 	return SetCoreStatus(CoreStates_STARTED, MessageType_EMPTY, ""), nil
+}
+
+// cleanupStaleIPRules removes leftover ip rules from a previous TUN session
+// that wasn't shut down cleanly (crash, kill, etc). Only runs on Linux.
+func cleanupStaleIPRules() {
+	if runtime.GOOS != "linux" {
+		return
+	}
+	// Remove all IPv4 and IPv6 rules pointing to sing-box routing table (2022)
+	for _, family := range []string{"-4", "-6"} {
+		for {
+			err := exec.Command("ip", family, "rule", "del", "lookup", "2022").Run()
+			if err != nil {
+				break
+			}
+		}
+	}
+	// Flush nftables rules from previous auto_redirect
+	_ = exec.Command("nft", "flush", "ruleset").Run()
 }
