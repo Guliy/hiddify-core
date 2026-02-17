@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"os"
 	"strings"
 	sync "sync"
 	"time"
@@ -442,16 +443,18 @@ func setInbound(options *option.Options, hopt *HiddifyOptions) {
 	ipv6Enable := isIPv6Supported()
 	if hopt.EnableTun {
 
-		// Force "mixed" stack: gvisor TCP broken in sing-box 1.13
+		// Force "mixed" stack + auto_redirect on Linux for proper TCP handling
 		tunStack := hopt.TUNStack
 		if tunStack == "gvisor" {
 			tunStack = "mixed"
 		}
 		opts := option.TunInboundOptions{
-			Stack:       tunStack,
-			MTU:         hopt.MTU,
-			AutoRoute:   true,
-			StrictRoute: hopt.StrictRoute,
+			Stack:        tunStack,
+			MTU:          hopt.MTU,
+			AutoRoute:    true,
+			AutoRedirect: true,
+			StrictRoute:  hopt.StrictRoute,
+			ExcludeUID:   []uint32{uint32(os.Getuid())},
 
 			// EndpointIndependentNat: true,
 			// GSO:                    runtime.GOOS != "windows",
