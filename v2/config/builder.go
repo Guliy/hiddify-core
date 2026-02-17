@@ -66,6 +66,14 @@ func BuildConfig(ctx context.Context, hopts *HiddifyOptions, inputOpt *ReadOptio
 		return nil, err
 	}
 
+	// Force IPv4-only DNS: most proxy servers lack IPv6 connectivity, causing
+	// Chrome (which prefers IPv6) to fail while IPv4-preferring apps work fine.
+	// "prefer_ipv4" still returns AAAA records on explicit queries; "ipv4_only" blocks them.
+	if hopts.RemoteDnsDomainStrategy == option.DomainStrategy(C.DomainStrategyAsIS) ||
+		hopts.RemoteDnsDomainStrategy == option.DomainStrategy(C.DomainStrategyPreferIPv4) {
+		hopts.RemoteDnsDomainStrategy = option.DomainStrategy(C.DomainStrategyIPv4Only)
+	}
+
 	var options option.Options
 	if hopts.EnableFullConfig {
 		options.Inbounds = input.Inbounds
@@ -405,8 +413,12 @@ func setExperimental(options *option.Options, hopt *HiddifyOptions) {
 }
 
 func setLog(options *option.Options, opt *HiddifyOptions) {
+	logLevel := opt.LogLevel
+	if logLevel == "warn" || logLevel == "error" || logLevel == "fatal" {
+		logLevel = "info"
+	}
 	options.Log = &option.LogOptions{
-		Level:        opt.LogLevel,
+		Level:        logLevel,
 		Output:       opt.LogFile,
 		Disabled:     false,
 		Timestamp:    false,
@@ -430,8 +442,13 @@ func setInbound(options *option.Options, hopt *HiddifyOptions) {
 	ipv6Enable := isIPv6Supported()
 	if hopt.EnableTun {
 
+		// Force "mixed" stack: gvisor TCP broken in sing-box 1.13
+		tunStack := hopt.TUNStack
+		if tunStack == "gvisor" {
+			tunStack = "mixed"
+		}
 		opts := option.TunInboundOptions{
-			Stack:       hopt.TUNStack,
+			Stack:       tunStack,
 			MTU:         hopt.MTU,
 			AutoRoute:   true,
 			StrictRoute: hopt.StrictRoute,
@@ -970,7 +987,7 @@ func setRoutingOptions(options *option.Options, hopt *HiddifyOptions) error {
 	options.Route = &option.RouteOptions{
 		Rules:               routeRules,
 		Final:               OutboundMainDetour,
-		AutoDetectInterface: (!C.IsAndroid && !C.IsIos) && (hopt.EnableTun || hopt.EnableTunService),
+		AutoDetectInterface: hopt.EnableTun || hopt.EnableTunService,
 		DefaultDomainResolver: &option.DomainResolveOptions{
 			Server:   DNSMultiDirectTag,
 			Strategy: hopt.DirectDnsDomainStrategy,

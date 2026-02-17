@@ -11,7 +11,6 @@ import (
 	hcommon "github.com/hiddify/hiddify-core/v2/hcommon"
 	service_manager "github.com/hiddify/hiddify-core/v2/service_manager"
 	"github.com/sagernet/sing-box/adapter"
-	C "github.com/sagernet/sing-box/constant"
 	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/option"
 	"github.com/sagernet/sing/service"
@@ -130,7 +129,8 @@ func StartService(ctx context.Context, in *StartRequest) (coreResponse *CoreInfo
 	if in.DelayStart {
 		<-time.After(1000 * time.Millisecond)
 	}
-	libbox.SetMemoryLimit(C.IsIos || !in.DisableMemoryLimit)
+	// Disable memory limit on Android — 45MB is too low, causes OOM connection kills
+	libbox.SetMemoryLimit(false)
 	instance, err := NewService(ctx, *options)
 	if err != nil {
 		return errorWrapper(MessageType_START_SERVICE, err)

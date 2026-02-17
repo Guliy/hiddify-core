@@ -61,7 +61,7 @@ func setDns(options *option.Options, opt *HiddifyOptions, staticIps *map[string]
 
 	direct_detour := OutboundDirectFragmentTag
 	if strings.HasPrefix(opt.DirectDnsAddress, "udp://") || !strings.Contains(opt.DirectDnsAddress, "://") {
-		direct_detour = ""
+		direct_detour = OutboundDirectTag
 	}
 
 	direct_dns, err := getDNSServerOptions(DNSDirectTag, opt.DirectDnsAddress, DNSLocalTag, direct_detour)

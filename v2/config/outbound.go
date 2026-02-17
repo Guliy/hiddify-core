@@ -37,12 +37,24 @@ func patchOutboundTLSTricks(base option.Outbound, configOpt HiddifyOptions) opti
 		tls = tlsopt.TakeOutboundTLSOptions()
 	}
 
+	// Fix uTLS "randomized" fingerprint generating unsupported curves in newer Go/uTLS
+	// Must be before transport check since Options holds pointer types (*VLESSOutboundOptions)
+	// and the value-type assertions below may fail
+	if tls != nil && tls.UTLS != nil {
+		// Force safe fingerprint: "randomized" and "chrome" both generate
+		// unsupported ECC/PQ curves in newer Go/uTLS (CurvePreferences error)
+		fp := tls.UTLS.Fingerprint
+		if fp == "randomized" || fp == "chrome" || fp == "" {
+			tls.UTLS.Fingerprint = "firefox"
+		}
+	}
+
 	var transport *option.V2RayTransportOptions
-	if opts, ok := base.Options.(option.VLESSOutboundOptions); ok {
+	if opts, ok := base.Options.(*option.VLESSOutboundOptions); ok {
 		transport = opts.Transport
-	} else if opts, ok := base.Options.(option.TrojanOutboundOptions); ok {
+	} else if opts, ok := base.Options.(*option.TrojanOutboundOptions); ok {
 		transport = opts.Transport
-	} else if opts, ok := base.Options.(option.VMessOutboundOptions); ok {
+	} else if opts, ok := base.Options.(*option.VMessOutboundOptions); ok {
 		transport = opts.Transport
 	}
 
@@ -60,10 +72,12 @@ func patchOutboundTLSTricks(base option.Outbound, configOpt HiddifyOptions) opti
 
 	base = patchOutboundFragment(base, configOpt)
 
-	if tls.TLSTricks == nil {
-		tls.TLSTricks = &option.TLSTricksOptions{}
+	if configOpt.TLSTricks.MixedSNICase {
+		if tls.TLSTricks == nil {
+			tls.TLSTricks = &option.TLSTricksOptions{}
+		}
+		tls.TLSTricks.MixedCaseSNI = true
 	}
-	tls.TLSTricks.MixedCaseSNI = tls.TLSTricks.MixedCaseSNI || configOpt.TLSTricks.MixedSNICase
 
 	if false && configOpt.TLSTricks.EnablePadding {
 		tls.TLSTricks.PaddingMode = "random"
