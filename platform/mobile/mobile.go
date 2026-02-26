@@ -1,7 +1,11 @@
 package mobile
 
 import (
+	"encoding/json"
+	"os"
+
 	hcore "github.com/hiddify/hiddify-core/v2/hcore"
+	"github.com/hiddify/hiddify-core/v2/config"
 
 	_ "net/http/pprof"
 
@@ -79,4 +83,32 @@ func Pause() {
 
 func Wake() {
 	hcore.Wake()
+}
+
+// ParseConfig reads a proxy config from tempPath (supports vless://, vmess://, sing-box JSON, clash YAML),
+// converts it to a full sing-box JSON configuration with TUN enabled (required for iOS VPN),
+// and writes the result to configPath. optionsJson is a JSON string of HiddifyOptions (may be empty).
+// Returns an empty string on success, or an error message on failure.
+func ParseConfig(tempPath string, configPath string, optionsJson string) string {
+	ctx := libbox.BaseContext(nil)
+
+	opts := config.DefaultHiddifyOptions()
+	opts.InboundOptions.EnableTun = true // iOS VPN extension requires TUN inbound
+
+	if optionsJson != "" {
+		var parsed config.HiddifyOptions
+		if err := json.Unmarshal([]byte(optionsJson), &parsed); err == nil {
+			parsed.InboundOptions.EnableTun = true
+			opts = &parsed
+		}
+	}
+
+	configBytes, err := config.ParseBuildConfigBytes(ctx, opts, &config.ReadOptions{Path: tempPath})
+	if err != nil {
+		return err.Error()
+	}
+	if err := os.WriteFile(configPath, configBytes, 0o644); err != nil {
+		return err.Error()
+	}
+	return ""
 }
