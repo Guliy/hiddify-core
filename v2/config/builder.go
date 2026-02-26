@@ -308,16 +308,16 @@ func setOutbounds(options *option.Options, input *option.Options, opt *HiddifyOp
 	}
 
 	selectorTags := tags
+	// Always create urlTest outbound so ping display works even with a single proxy
+	outbounds = append([]option.Outbound{urlTest}, outbounds...)
+	selectorTags = append([]string{urlTest.Tag}, selectorTags...)
 	if len(tags) > 1 {
 		if OutboundMainDetour == WARPConfigTag {
-			outbounds = append([]option.Outbound{urlTest}, outbounds...)
-			selectorTags = append([]string{urlTest.Tag}, selectorTags...)
 			defaultSelect = urlTest.Tag
 		} else {
-			outbounds = append([]option.Outbound{balancer, urlTest}, outbounds...)
-			selectorTags = append([]string{urlTest.Tag, balancer.Tag}, selectorTags...)
+			outbounds = append([]option.Outbound{balancer}, outbounds...)
+			selectorTags = append([]string{balancer.Tag}, selectorTags...)
 			defaultSelect = balancer.Tag
-
 		}
 	}
 	selector := option.Outbound{
