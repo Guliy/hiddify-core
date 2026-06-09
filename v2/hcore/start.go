@@ -183,6 +183,10 @@ func cleanupStaleIPRules() {
 			}
 		}
 	}
-	// Flush nftables rules from previous auto_redirect
-	_ = exec.Command("nft", "flush", "ruleset").Run()
+	// Remove only sing-box's own nftables table left over from a previous
+	// auto_redirect session. Do NOT flush the whole ruleset — that would wipe
+	// firewalld/ufw, docker, libvirt and any user firewall rules on the machine.
+	// sing-tun creates a single `inet sing-box` table (see sing-tun
+	// redirect_nftables.go: TableFamilyINet + TableName "sing-box").
+	_ = exec.Command("nft", "delete", "table", "inet", "sing-box").Run()
 }
