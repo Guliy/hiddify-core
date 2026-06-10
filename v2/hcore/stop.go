@@ -25,6 +25,7 @@ func Stop() (coreResponse *CoreInfoResponse, err error) {
 	ss := static.StartedService
 	if ss == nil {
 		cleanupStaleIPRules()
+		cleanupStaleSystemProxy()
 		return SetCoreStatus(CoreStates_STOPPED, MessageType_ALREADY_STOPPED, ""), nil
 	}
 
@@ -48,6 +49,9 @@ func Stop() (coreResponse *CoreInfoResponse, err error) {
 	static.StartedService = nil
 	// Always clean up ip rules and nftables after stop
 	cleanupStaleIPRules()
+	// If CloseService failed or timed out before the listener could restore
+	// the system proxy, restore it from the backup now
+	cleanupStaleSystemProxy()
 
 	return SetCoreStatus(CoreStates_STOPPED, MessageType_EMPTY, ""), nil
 }

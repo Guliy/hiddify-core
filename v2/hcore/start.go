@@ -13,6 +13,7 @@ import (
 	hcommon "github.com/hiddify/hiddify-core/v2/hcommon"
 	service_manager "github.com/hiddify/hiddify-core/v2/service_manager"
 	"github.com/sagernet/sing-box/adapter"
+	sbsettings "github.com/sagernet/sing-box/common/settings"
 	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/option"
 	"github.com/sagernet/sing/service"
@@ -133,6 +134,9 @@ func StartService(ctx context.Context, in *StartRequest) (coreResponse *CoreInfo
 	}
 	// Clean up leftover ip rules from previous crashed sessions (Linux TUN)
 	cleanupStaleIPRules()
+	// Restore the user's system proxy settings if a previous session crashed
+	// while system proxy mode was active (Linux desktop)
+	cleanupStaleSystemProxy()
 	// Disable memory limit on Android — 45MB is too low, causes OOM connection kills
 	libbox.SetMemoryLimit(false)
 
@@ -189,4 +193,20 @@ func cleanupStaleIPRules() {
 	// sing-tun creates a single `inet sing-box` table (see sing-tun
 	// redirect_nftables.go: TableFamilyINet + TableName "sing-box").
 	_ = exec.Command("nft", "delete", "table", "inet", "sing-box").Run()
+}
+
+// cleanupStaleSystemProxy restores the user's original system proxy settings
+// if a previous session enabled system proxy mode and never disabled it
+// (crash, SIGKILL). No-op when there is no backup file or the user has since
+// changed the proxy settings themselves.
+func cleanupStaleSystemProxy() {
+	if runtime.GOOS != "linux" {
+		return
+	}
+	if sWorkingPath != "" {
+		sbsettings.SystemProxyBackupPath = filepath.Join(sWorkingPath, "data", "system-proxy-backup.json")
+	}
+	if err := sbsettings.CleanupStaleSystemProxy(context.Background()); err != nil {
+		Log(LogLevel_WARNING, LogType_CORE, "stale system proxy cleanup: ", err.Error())
+	}
 }
